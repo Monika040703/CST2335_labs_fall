@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'app_database.dart'; // Import the database class
+import 'to_do_item.dart'; // Import the ToDoItem class
+import 'package:floor/floor.dart'; // Import Floor
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); // Ensures everything is initialized before the app starts
+  final database = await $FloorAppDatabase.databaseBuilder('app_database.db').build(); // Correct usage of the generated class
+  runApp(MyApp(database: database));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final AppDatabase database;
+
+  const MyApp({Key? key, required this.database}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -14,33 +21,50 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.purple,
       ),
-      home: const MyHomePage(),
+      home: MyHomePage(database: database),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key});
+  final AppDatabase database;
+
+  const MyHomePage({Key? key, required this.database}) : super(key: key);
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  final List<String> _todoItems = [];
+  List<ToDoItem> _todoItems = [];
   final TextEditingController _textController = TextEditingController();
+  int _idCounter = 1;
 
-  // Function to handle adding a new item to the list
-  void _addTodoItem() {
+  @override
+  void initState() {
+    super.initState();
+    _loadToDoItems();
+  }
+
+  Future<void> _loadToDoItems() async {
+    final items = await widget.database.toDoDao.findAllToDoItems();
+    setState(() {
+      _todoItems = items;
+      _idCounter = (items.isNotEmpty ? items.map((item) => item.id).reduce((a, b) => a > b ? a : b) : 0) + 1;
+    });
+  }
+
+  void _addTodoItem() async {
     if (_textController.text.isNotEmpty) {
+      final newItem = ToDoItem(_idCounter++, _textController.text);
+      await widget.database.toDoDao.insertToDoItem(newItem);
       setState(() {
-        _todoItems.add(_textController.text);
-        _textController.clear();  // Clear the TextField
+        _todoItems.add(newItem);
+        _textController.clear();
       });
     }
   }
 
-  // Function to display an AlertDialog for confirming item deletion
   void _promptRemoveItem(int index) {
     showDialog(
       context: context,
@@ -50,17 +74,17 @@ class _MyHomePageState extends State<MyHomePage> {
           content: const Text('Are you sure you want to delete this task?'),
           actions: <Widget>[
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog without doing anything
-              },
+              onPressed: () => Navigator.of(context).pop(),
               child: const Text('No'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
+                final item = _todoItems[index];
+                await widget.database.toDoDao.deleteToDoItem(item);
                 setState(() {
-                  _todoItems.removeAt(index);  // Remove the item
+                  _todoItems.removeAt(index);
                 });
-                Navigator.of(context).pop();  // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Yes'),
             ),
@@ -104,7 +128,7 @@ class _MyHomePageState extends State<MyHomePage> {
               itemCount: _todoItems.length,
               itemBuilder: (context, index) {
                 return ListTile(
-                  title: Text('Item $index: ${_todoItems[index]}'),
+                  title: Text('Item $index: ${_todoItems[index].name}'),
                   onLongPress: () => _promptRemoveItem(index),
                 );
               },

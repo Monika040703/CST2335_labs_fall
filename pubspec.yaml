@@ -37,8 +37,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   flutter_secure_storage: ^8.0.0
   url_launcher: ^6.1.7
+  floor: ^1.4.1
 
 dev_dependencies:
+  floor_generator: ^1.4.1
+  build_runner: ^2.4.6
   flutter_test:
     sdk: flutter
 
